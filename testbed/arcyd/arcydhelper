@@ -32,12 +32,12 @@ def main(argv=None):
 
     order = [
         "title", "summary", "test_plan",
-        "reviewers", "branch", "remote", "landing_branch", "msg_method"
+        "reviewers", "branch", "remote", "review_branch", "landing_branch", "msg_method"
     ]
 
     fields = {
         "title": {
-            "prompt":       "revision title",
+            "prompt":       "Revision title",
         },
         "summary": {
             "prompt":       "Summary",
@@ -52,14 +52,17 @@ def main(argv=None):
             "default":      ""
         },
         "branch": {
-            "prompt":       "Branch to be pushed"
+            "prompt":       "Local branch to be pushed"
+        },
+        "review_branch": {
+            "prompt":       "Remote review branch to be created"
         },
         "remote": {
             "prompt":       "Remote to be pushed to",
             "default":      "origin"
         },
         "landing_branch": {
-            "prompt":       "Branch to be diffed against and landed on",
+            "prompt":       "Remote branch to be diffed against and landed on",
             "default":      "master"
         },
         "msg_method": {
@@ -74,7 +77,9 @@ def main(argv=None):
         stdout=subprocess.PIPE
     )
     fields["branch"]["default"] = p.stdout.readline()[:-1]
-
+    
+    fields["review_branch"]["default"] = fields["branch"]["default"].replace("/","-")
+    
     p = subprocess.Popen(
         ["git", "log", "-1", "--pretty=%B"],
         stdout=subprocess.PIPE
@@ -84,7 +89,7 @@ def main(argv=None):
     for fieldName in order:
         field = fields[fieldName]
 
-        if "multiline" in field:
+        if "multiline" in field and field["multiline"]:
             field["entry"] = getFileInput(field["prompt"])
 
         elif "default" in field:
@@ -97,10 +102,10 @@ def main(argv=None):
         else:
             field["entry"] = raw_input(field["prompt"] + ":")
 
-        def getTupleFromFields(requestedFields):
-            entries = [fields[field]["entry"] for field in requestedFields]
-            return tuple(entries)
-
+    def getTupleFromFields(requestedFields):
+        entries = [fields[field]["entry"] for field in requestedFields]
+        return tuple(entries)
+    
     msg = """%s
 
 %s
@@ -117,8 +122,8 @@ Reviewers: %s
     else:
         msgCommand = 'git commit --amend -m "%s"' % msg
 
-    pushCommand = "git push %s %s:ph-review/%s/%s" % getTupleFromFields(
-        ["remote", "branch", "branch", "landing_branch"])
+    pushCommand = "git push %s %s:arcyd-review/%s/%s" % getTupleFromFields(
+        ["remote", "branch", "review_branch", "landing_branch"])
 
     print """######## NEW COMMIT MESSAGE #########
 %s
@@ -128,13 +133,13 @@ Reviewers: %s
 
     response = raw_input(
         "\nDo you want to write the commit message and "
-        "push (p), just write message (m) or do nothing (N)?")
+        "push (p), just write message (m) or do nothing (n)? [n]")
     if response is "p" or response is "m":
         subprocess.call(msgCommand, shell=True)
         if response is "p":
             subprocess.call(pushCommand, shell=True)
     else:
-        print "nothing was done."
+        print "Nothing was done."
 
 if __name__ == "__main__":
     sys.exit(main())
